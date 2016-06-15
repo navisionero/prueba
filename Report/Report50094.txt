@@ -1,0 +1,216 @@
+OBJECT Table 50045 Conf. Control Cambios
+{
+  OBJECT-PROPERTIES
+  {
+    Date=14/06/16;
+    Time=10:43:34;
+    Modified=Yes;
+    Version List=;
+  }
+  PROPERTIES
+  {
+  }
+  FIELDS
+  {
+    { 10  ;   ;Primary Key         ;Code10        ;CaptionML=[ENU=Primary Key;
+                                                              ESP=Clave primaria] }
+    { 20  ;   ;Ruta Proyecto       ;Text250        }
+    { 30  ;   ;Servidor_Instancia  ;Text100        }
+    { 40  ;   ;Base de Datos       ;Text50         }
+    { 50  ;   ;Ruta FinSQL.exe     ;Text250        }
+  }
+  KEYS
+  {
+    {    ;Primary Key                             ;Clustered=Yes }
+  }
+  FIELDGROUPS
+  {
+  }
+  CODE
+  {
+
+    BEGIN
+    END.
+  }
+}
+
+OBJECT Report 50094 Export Objects to .txt
+{
+  OBJECT-PROPERTIES
+  {
+    Date=15/06/16;
+    Time=[ 9:07:50];
+    Modified=Yes;
+    Version List=;
+  }
+  PROPERTIES
+  {
+    ProcessingOnly=Yes;
+  }
+  DATAITEMS
+  {
+    { PROPERTIES
+      {
+        DataItemTable=Table2000000001;
+        DataItemTableView=SORTING(Type,Company Name,ID)
+                          WHERE(Type=FILTER(Table|Form|Report|XMLport|MenuSuite|Codeunit|Page));
+        DataItemVarName=Objeto;
+        OnPreDataItem=BEGIN
+
+                        SETRANGE(Modified,TRUE);
+
+                        Contador:=0;
+                        WshMode := 7;
+                        WaitForEndOfCommand := TRUE;
+
+                        CLEAR(FileScript);
+                        CREATE(FileScript);
+                        IF NOT FileScript.FolderExists(Ruta) THEN BEGIN
+                           ERROR('NO EXISTE RUTA '+Ruta);
+                        END;
+                      END;
+
+        OnAfterGetRecord=BEGIN
+                           //SDC 140616 Desarrollo para NAV 2009 ini
+                           CASE Type OF
+                             Objeto.Type::Table: vCarpeta:='Table\';
+                             Objeto.Type::Form: vCarpeta:='Form\';
+                             Objeto.Type::Report: vCarpeta:='Report\';
+                             Objeto.Type::Codeunit: vCarpeta:='Codeunit\';
+                             Objeto.Type::XMLport: vCarpeta:='XMLport\';
+                             Objeto.Type::MenuSuite: vCarpeta:='MenuSuite\';
+                             Objeto.Type::Page: vCarpeta:='Page\';
+                           END;
+                           CLEAR(FileScript);
+                           CREATE(FileScript);
+                           //CREAR CARPETA SI NO EXISTE
+                           IF NOT FileScript.FolderExists(Ruta + vCarpeta) THEN BEGIN
+                              FileScript.CreateFolder(Ruta + vCarpeta);
+                           END;
+                             EXPORTOBJECTS(
+                             Ruta + vCarpeta +
+                             FORMAT(Objeto.Type) + FORMAT(Objeto.ID) +'.txt',Objeto, 0);
+                             Contador+=1;
+                           //SDC 140616 Desarrollo para NAV 2009 fin
+                         END;
+
+        OnPostDataItem=BEGIN
+
+                         // COMMIT DEL TortoiseSVN
+                         IF ISCLEAR(wSHShell) THEN BEGIN
+                           CREATE(wSHShell,FALSE,ISSERVICETIER);
+                           wSHShell.Run('cmd.exe /C svn cleanup --username navision --password navision '
+                              + COPYSTR(Ruta,1,STRLEN(Ruta)-1),
+                                        WshMode,WaitForEndOfCommand);
+                           wSHShell.Run('cmd.exe /C svn add --force --username navision --password navision '
+                               + Ruta + '* ',WshMode,WaitForEndOfCommand);
+                           wSHShell.Run('cmd.exe /C svn cleanup --username navision --password navision '
+                              + COPYSTR(Ruta,1,STRLEN(Ruta)-1),WshMode,WaitForEndOfCommand);
+                           wSHShell.Run('cmd.exe /C svn commit --username navision --password navision '
+                              + COPYSTR(Ruta,1,STRLEN(Ruta)-1) +
+                                 ' -m ''Add''',WshMode,WaitForEndOfCommand);
+
+                           CLEAR(wSHShell);
+                         END;
+                         MESSAGE('%1 ARCHIVOS EXPORTADOS',FORMAT(Contador));
+                       END;
+
+        ReqFilterFields=Type,ID,Date;
+      }
+      SECTIONS
+      {
+        { PROPERTIES
+          {
+            SectionType=Body;
+            SectionWidth=12000;
+            SectionHeight=846;
+          }
+          CONTROLS
+          {
+          }
+           }
+      }
+       }
+  }
+  REQUESTFORM
+  {
+    PROPERTIES
+    {
+      Width=18810;
+      Height=4070;
+      SaveValues=Yes;
+    }
+    CONTROLS
+    {
+      { 1000000000;TextBox;1760 ;660  ;15840;440  ;InPage=-1;
+                                                   SourceExpr=Ruta;
+                                                   OnValidate=BEGIN
+                                                                IF NOT (COPYSTR(Ruta,STRLEN(Ruta),1)='\') THEN BEGIN
+                                                                   Ruta:=Ruta+'\';
+                                                                END;
+                                                              END;
+
+                                                   OnAssistEdit=VAR
+                                                                  WindowTitle@1000000001 : Text[50];
+                                                                  HighestFolder@1000000002 : Text[500];
+                                                                BEGIN
+                                                                  IF ISCLEAR(ShellControl) THEN
+                                                                   CREATE(ShellControl);
+                                                                  Folder := ShellControl.BrowseForFolder(0,WindowTitle,0,HighestFolder);
+                                                                  IF NOT ISCLEAR(Folder) THEN
+                                                                  Ruta := Folder.Items().Item.Path + '\';
+                                                                  CLEAR(ShellControl);
+                                                                  //EXIT(Ruta);
+                                                                END;
+                                                                 }
+      { 1000000001;Label  ;440  ;660  ;1210 ;440  ;ParentControl=1000000000;
+                                                   CaptionML=ESP=Ruta }
+    }
+  }
+  REQUESTPAGE
+  {
+    PROPERTIES
+    {
+    }
+    CONTROLS
+    {
+    }
+  }
+  CODE
+  {
+    VAR
+      wSHShell@1000000000 : Automation "{F935DC20-1CF0-11D0-ADB9-00C04FD58A0B} 1.0:{72C24DD5-D70A-438B-8A42-98424B88AFB8}:'Windows Script Host Object Model'.WshShell";
+      vCarpeta@1000000001 : Text[30];
+      WshMode@1000000002 : Integer;
+      WaitForEndOfCommand@1000000003 : Boolean;
+      Contador@1000000005 : Integer;
+      FileScript@1000000006 : Automation "{420B2830-E718-11CF-893D-00A0C9054228} 1.0:{0D43FE01-F093-11CF-8940-00A0C9054228}:'Microsoft Scripting Runtime'.FileSystemObject";
+      Ruta@1000000007 : Text[1024];
+      ShellControl@1000000008 : Automation "{50A7E9B0-70EF-11D1-B75A-00A0C90564FE} 1.0:{13709620-C279-11CE-A49E-444553540000}:'Microsoft Shell Controls And Automation'.Shell";
+      Folder@1000000010 : Automation "{50A7E9B0-70EF-11D1-B75A-00A0C90564FE} 1.0:{A7AE5F64-C4D7-4D7F-9307-4D24EE54B841}:'Microsoft Shell Controls And Automation'.Folder3";
+
+    BEGIN
+    {
+      //SDC 140616 Desarrollo para NAV 2009 ini
+      \Table
+      \Form
+      \Report
+      \Codeunit
+      \XMLport
+      \MenuSuite
+      \Page
+
+      Adem s la carpeta tiene que estar vinculada con Tortoise ya que tras exportar todos los objetos modificados realizar  un commit por
+
+      Con esto conseguimos que si llamamos a este report desde un SW, mediante por ejemplo una tarea de windows tendremos un control diari
+
+      NOTAS: las l¡neas de comando de Tortoise tienen que estar instaladas en el equipo donde se ejecute, por defecto al instalar viene de
+      //SDC 140616 Desarrollo para NAV 2009 fin
+    }
+    END.
+  }
+  RDLDATA
+  {
+  }
+}
+
